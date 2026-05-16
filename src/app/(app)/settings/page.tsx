@@ -24,6 +24,9 @@ import {
   Trash2,
   CircleAlert,
   Zap,
+  FileText,
+  Link2,
+  Link2Off,
 } from "lucide-react";
 import {
   type Provider,
@@ -34,6 +37,14 @@ import {
   removeApiKey,
   setActiveProvider,
 } from "@/lib/ai";
+import {
+  startGoogleAuth,
+  isGoogleConnected,
+  removeGoogleToken,
+  getClientId,
+  saveClientId,
+  removeClientId,
+} from "@/lib/google";
 
 interface ProviderState {
   key: string;
@@ -97,6 +108,9 @@ export default function SettingsPage() {
     openrouter: makeDefault(),
     groq: makeDefault(),
   });
+  const [googleClientId, setGoogleClientId] = useState("");
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleConnecting, setGoogleConnecting] = useState(false);
 
   useEffect(() => {
     const saved = loadApiKeys();
@@ -115,7 +129,27 @@ export default function SettingsPage() {
       }
       return next;
     });
+    setGoogleClientId(getClientId());
+    setGoogleConnected(isGoogleConnected());
   }, []);
+
+  const handleGoogleConnect = () => {
+    if (!googleClientId.trim()) return;
+    saveClientId(googleClientId.trim());
+    setGoogleConnecting(true);
+    try {
+      startGoogleAuth(); // redirects the page — no await needed
+    } catch {
+      setGoogleConnecting(false);
+    }
+  };
+
+  const handleGoogleDisconnect = () => {
+    removeGoogleToken();
+    removeClientId();
+    setGoogleConnected(false);
+    setGoogleClientId("");
+  };
 
   const update = (provider: Provider, patch: Partial<ProviderState>) =>
     setProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], ...patch } }));
@@ -336,6 +370,124 @@ export default function SettingsPage() {
           </Card>
         );
       })}
+
+      {/* Google Docs */}
+      <Card className={`border-border/50 ${googleConnected ? "border-emerald-500/30" : ""}`}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Google Docs</CardTitle>
+              {googleConnected && (
+                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] px-1.5">
+                  Connected
+                </Badge>
+              )}
+            </div>
+            {googleConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive h-7 text-xs"
+                onClick={handleGoogleDisconnect}
+              >
+                <Link2Off className="w-3.5 h-3.5 mr-1" />
+                Disconnect
+              </Button>
+            )}
+          </div>
+          <CardDescription className="text-xs">
+            Export conversations directly to Google Docs with one click
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {googleConnected ? (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Google account connected. Use "Open in Google Docs" on the preview page.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Google OAuth Client ID</Label>
+                <Input
+                  placeholder="123456789-abc...apps.googleusercontent.com"
+                  value={googleClientId}
+                  onChange={(e) => setGoogleClientId(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Get it from{" "}
+                  <span className="font-mono text-primary">console.cloud.google.com</span>
+                  {" "}→ APIs & Services → Credentials → OAuth 2.0 Client ID
+                </p>
+              </div>
+
+              <div className="rounded-md bg-muted/50 border border-border/50 p-4 space-y-3">
+                <p className="text-xs font-semibold">How to get your Google Client ID (one time setup)</p>
+
+                <div className="space-y-2.5 text-[11px] text-muted-foreground">
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">1</span>
+                    <p>Go to <span className="font-mono text-primary">console.cloud.google.com</span> and sign in with your Google account.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">2</span>
+                    <p>Click <strong className="text-foreground">Select a project</strong> at the top, then click <strong className="text-foreground">New Project</strong>. Give it any name and click Create.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">3</span>
+                    <p>From the left menu go to <strong className="text-foreground">APIs & Services → Library</strong>. Search for <strong className="text-foreground">Google Docs API</strong> and click Enable. Then search for <strong className="text-foreground">Google Drive API</strong> and enable that too.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">4</span>
+                    <p>Go to <strong className="text-foreground">APIs & Services → OAuth consent screen</strong>. Select <strong className="text-foreground">External</strong>, click Create. Fill in App name (anything), your email, and click Save and Continue through all steps.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">5</span>
+                    <p>Go to <strong className="text-foreground">APIs & Services → Credentials</strong>. Click <strong className="text-foreground">Create Credentials → OAuth 2.0 Client ID</strong>. Choose <strong className="text-foreground">Web application</strong> as the application type.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">6</span>
+                    <div className="space-y-2 flex-1">
+                      <p>Under <strong className="text-foreground">Authorized JavaScript origins</strong> click Add URI and paste:</p>
+                      <p className="font-mono text-primary bg-primary/5 rounded px-2 py-1 break-all select-all">
+                        {typeof window !== "undefined" ? window.location.origin : "https://your-app.vercel.app"}
+                      </p>
+                      <p className="mt-1">Then under <strong className="text-foreground">Authorized redirect URIs</strong> click Add URI and paste:</p>
+                      <p className="font-mono text-primary bg-primary/5 rounded px-2 py-1 break-all select-all">
+                        {typeof window !== "undefined" ? window.location.origin : "https://your-app.vercel.app"}/auth/callback
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-[10px]">7</span>
+                    <p>Click <strong className="text-foreground">Create</strong>. Copy the <strong className="text-foreground">Client ID</strong> (looks like: 123456789-abc...apps.googleusercontent.com) and paste it in the field above.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-semibold text-[10px]">8</span>
+                    <p>Click <strong className="text-foreground">Connect Google Account</strong> below. Sign in with Google and allow access. Done - you only need to do this once.</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <Button
+                onClick={handleGoogleConnect}
+                disabled={!googleClientId.trim() || googleConnecting}
+                className="w-full"
+              >
+                {googleConnecting ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Redirecting to Google...</>
+                ) : (
+                  <><Link2 className="w-4 h-4 mr-2" />Connect Google Account</>
+                )}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Security note */}
       <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">

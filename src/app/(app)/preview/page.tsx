@@ -31,6 +31,7 @@ import type { ConversationOutput, ConvoFormData } from "@/lib/prompt";
 import { getActiveKey } from "@/lib/ai";
 import { runConversationAgent, type AgentStep } from "@/lib/agent";
 import { downloadDocx, downloadPdf, downloadTxt } from "@/lib/export";
+import { isGoogleConnected, createGoogleDoc } from "@/lib/google";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -205,7 +206,8 @@ export default function PreviewPage() {
   const [offer, setOffer] = useState<ConversationOutput["customOffer"] | null>(null);
   const [requirements, setRequirements] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
-  const [exporting, setExporting] = useState<"docx" | "pdf" | "txt" | null>(null);
+  const [exporting, setExporting] = useState<"docx" | "pdf" | "txt" | "gdocs" | null>(null);
+  const [googleConnected, setGoogleConnected] = useState(false);
   const [newReq, setNewReq] = useState("");
   const [addingMsg, setAddingMsg] = useState(false);
   const [newMsgRole, setNewMsgRole] = useState<"buyer" | "seller">("buyer");
@@ -215,6 +217,7 @@ export default function PreviewPage() {
   const [genError, setGenError] = useState("");
 
   useEffect(() => {
+    setGoogleConnected(isGoogleConnected());
     const stored = sessionStorage.getItem("convo_result");
     if (stored) {
       const data: ConversationOutput = JSON.parse(stored);
@@ -309,6 +312,18 @@ export default function PreviewPage() {
     }
   };
 
+  const handleGoogleDocs = async () => {
+    setExporting("gdocs");
+    try {
+      const url = await createGoogleDoc(currentData());
+      window.open(url, "_blank");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create Google Doc.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
   if (generating) {
     return (
       <div className="max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -368,6 +383,19 @@ export default function PreviewPage() {
           <Button variant="outline" size="sm" onClick={() => handleExport("pdf")} disabled={!!exporting}>
             {exporting === "pdf" ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}PDF
           </Button>
+          {googleConnected ? (
+            <Button variant="outline" size="sm" onClick={handleGoogleDocs} disabled={!!exporting} className="text-blue-600 border-blue-500/30 hover:bg-blue-500/10">
+              {exporting === "gdocs" ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}Google Docs
+            </Button>
+          ) : (
+            <Link href="/settings">
+              <Button variant="outline" size="sm" className="text-muted-foreground border-dashed">
+                <FileText className="w-3.5 h-3.5 mr-1.5" />
+                Google Docs
+                <span className="ml-1.5 text-[10px] bg-muted rounded px-1 py-0.5">Connect</span>
+              </Button>
+            </Link>
+          )}
           <Link href="/generate">
             <Button size="sm" variant="outline">
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />

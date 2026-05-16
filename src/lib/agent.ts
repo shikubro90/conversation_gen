@@ -22,15 +22,20 @@ export interface AgentPlan {
 // ─── Pools ────────────────────────────────────────────────────────────────────
 
 const BUYER_PERSONALITIES = [
-  "shy and polite — gives short replies, avoids calls, trusts the seller gradually",
-  "friendly and casual — addresses seller by name, gets straight to the point",
-  "budget-conscious — names their budget early, negotiates directly",
-  "confused beginner — tried doing it themselves, came with broken or incomplete work",
-  "excited solopreneur — enthusiastic, over-explains their idea, eager to move fast",
-  "business-focused — direct, wants price and timeline confirmed quickly",
-  "technical buyer — knows the stack, shares code or files, asks precise questions",
-  "returning client — already knows the seller, casual and trusting from the start",
-  "hesitant buyer — interested but second-guesses, needs reassurance before committing",
+  "shy and polite — gives very short replies, avoids calls, slowly opens up, trusts the seller gradually",
+  "friendly and casual — addresses seller by name, chats like a friend, relaxed and easy-going",
+  "budget-conscious and firm — names budget early, negotiates hard, needs value explained clearly before agreeing",
+  "confused beginner — tried doing it themselves and failed, not sure what they need, asks vague questions",
+  "excited and enthusiastic — over-explains their idea, uses exclamation sometimes, eager to start immediately",
+  "busy professional — very direct, short messages only, wants price and timeline fast, no small talk",
+  "technical and precise — knows the stack well, asks detailed questions, evaluates seller expertise carefully",
+  "returning client — casual and trusting from the first message, references past experience naturally",
+  "hesitant and overthinking — asks the same thing in different ways, needs multiple reassurances to commit",
+  "skeptical buyer — has been burned before, tests seller with tough questions, warms up slowly",
+  "corporate buyer — formal tone, uses proper sentences, wants structured deliverables and documentation",
+  "impulsive buyer — decides fast, asks price immediately, not interested in long explanations",
+  "research-heavy buyer — already did their homework, knows market rates, compares sellers openly",
+  "emotional storyteller — shares full background before asking for help, very personal in how they communicate",
 ];
 
 const SELLER_PERSONALITIES = [
@@ -108,13 +113,43 @@ async function callWithRetry(
   throw lastError!;
 }
 
+// Repairs truncated JSON by closing any open strings/arrays/objects
+function repairJSON(raw: string): string {
+  let s = raw.trim();
+  // Close any unclosed string — find last unescaped quote
+  const quoteCount = (s.match(/(?<!\\)"/g) || []).length;
+  if (quoteCount % 2 !== 0) s += '"';
+  // Count unclosed brackets
+  let curly = 0, square = 0;
+  let inStr = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '"' && s[i - 1] !== "\\") inStr = !inStr;
+    if (!inStr) {
+      if (c === "{") curly++;
+      if (c === "}") curly--;
+      if (c === "[") square++;
+      if (c === "]") square--;
+    }
+  }
+  // Remove trailing comma before closing
+  s = s.replace(/,\s*$/, "");
+  for (let i = 0; i < square; i++) s += "]";
+  for (let i = 0; i < curly; i++) s += "}";
+  return s;
+}
+
 function parseJSON<T>(raw: string): T {
   const cleaned = raw
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```\s*$/i, "")
     .trim();
-  return JSON.parse(cleaned) as T;
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    return JSON.parse(repairJSON(cleaned)) as T;
+  }
 }
 
 // ─── Step 1: Plan ─────────────────────────────────────────────────────────────
@@ -205,8 +240,8 @@ Opening: ${plan.openingHook}
 Closing: ${plan.closingMove}
 Conversation style: ${plan.conversationStyle}
 Emotional arc: ${plan.emotionalArc}
-Total messages: ${plan.messageCount} — alternate buyer/seller, start with buyer
-(Seller may send two consecutive messages occasionally — realistic on Fiverr)
+Total messages: ${plan.messageCount} - alternate buyer/seller, start with buyer
+(Seller may send two consecutive messages occasionally - realistic on Fiverr)
 
 ==================================================
 STUDY EXAMPLE 1 — Warm, detailed, cozy project
@@ -286,6 +321,14 @@ Seller: Deal 🤝
 KEY PATTERNS TO FOLLOW
 ==================================================
 
+FIVERR PLATFORM RULES — SELLER MUST FOLLOW:
+- NEVER write the word "email" — Fiverr blocks it. Write "e-mail" instead if needed
+- NEVER write "whatsapp", "WhatsApp", or any variation — Fiverr blocks it
+- NEVER write "money" — use "budget", "investment", "amount", "cost" instead
+- NEVER write "payment" — write "pa-yment" if must use it
+- NEVER use (—) em dash anywhere in any message — use (-) hyphen only
+- These rules apply to BOTH buyer and seller messages
+
 SELLER rules:
 - Ask ONE question at a time — never a list of questions in one message
 - Use buyer's name or business name once it is mentioned
@@ -342,10 +385,18 @@ SELLER REQUIREMENTS SUMMARY RULE — CRITICAL:
   "Anything you want to adjust before I send the offer?"
 
 BUYER rules:
-- Match the personality in the plan exactly
+- Match the personality in the plan EXACTLY - this is critical for realism
+- Shy buyer: very short replies, one sentence max, never volunteers extra info
+- Busy buyer: skips greetings, gets to the point in first message, impatient
+- Excited buyer: slightly longer messages, energetic tone, uses "!" occasionally
+- Skeptical buyer: asks follow-up questions even after good answers, pushes back
+- Corporate buyer: proper grammar, structured sentences, no casual language
+- Impulsive buyer: asks price in the first or second message, quick decisions
+- Emotional buyer: shares personal story in first message, uses "I" a lot
+- Confused buyer: asks broad unclear questions, needs seller to guide them completely
+- Technical buyer: uses technical terms correctly, tests seller's knowledge
 - Use seller's name if the opening hook calls for it
-- Give short replies where personality calls for it
-- React naturally to seller messages ("Hmm..", "Oh that's fast.", "Got it.", "Let's proceed.")
+- React naturally and differently based on personality
 - Name a budget when asked — make it slightly lower than realistic
 - Gradually become more comfortable and ready to close
 - NO emojis. NO icons. Plain text only.
